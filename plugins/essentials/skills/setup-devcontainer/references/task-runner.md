@@ -90,11 +90,18 @@ dev-shell *args:
     fi
 
     [[ -f "$HOME/.gitconfig" ]] && run_args+=(-v "$HOME/.gitconfig:/tmp/home/.gitconfig:ro")
-    [[ -d "$HOME/.config/gh" ]] && run_args+=(-v "$HOME/.config/gh:/tmp/home/.config/gh")
+    [[ -d "$HOME/.config/gh" ]] && run_args+=(-v "$HOME/.config/gh:/tmp/home/.config/gh:ro")
 
     if [[ "$docker_support_enabled" == true && -S /var/run/docker.sock ]]; then
         run_args+=(-v /var/run/docker.sock:/var/run/docker.sock)
-        run_args+=(--group-add "$(stat -c '%g' /var/run/docker.sock)")
+        docker_sock_gid="$(
+            if stat -c '%g' /var/run/docker.sock >/dev/null 2>&1; then
+                stat -c '%g' /var/run/docker.sock
+            else
+                stat -f '%g' /var/run/docker.sock
+            fi
+        )"
+        run_args+=(--group-add "$docker_sock_gid")
     fi
 
     if [[ "${1:-}" == "--firewall" ]]; then
