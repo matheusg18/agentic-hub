@@ -101,6 +101,10 @@ dev-shell *args:
                 stat -f '%g' /var/run/docker.sock
             fi
         )"
+        if [[ -z "$docker_sock_gid" ]]; then
+            echo "error: could not determine Docker socket GID" >&2
+            exit 1
+        fi
         run_args+=(--group-add "$docker_sock_gid")
     fi
 
