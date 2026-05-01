@@ -46,6 +46,32 @@ Use inclusion rules, not guesses:
 
 If Docker support is enabled, the image still stays client-only. The host daemon comes from `/var/run/docker.sock`; the container should never run a daemon of its own.
 
+## Dockerfile additions
+
+Add Docker support in the same global CLI layer as the other host-facing tools, but keep it client-only.
+
+On Debian/Ubuntu-style bases, install the Docker CLI package from the Docker repo or the equivalent client-only package for the chosen base image:
+
+- `docker-ce-cli` for the CLI
+- `docker-compose-plugin` when the repository uses `docker compose` or checked-in Compose files
+- `docker-buildx-plugin` when the repository builds images or invokes `docker buildx`
+
+Do **not** install daemon packages or services such as `docker-ce`, `dockerd`, or `containerd`. The devcontainer should talk to the host daemon through `/var/run/docker.sock`, not start its own daemon.
+
+Keep the socket-GID path writable during the root phase of the entrypoint. If the runtime needs to append a missing socket GID to `/etc/group`, do not replace that file with a read-only mount or otherwise block the root user from updating it before privilege drop.
+
+```dockerfile
+# -- Docker client (optional, Docker support only) ------------------------------
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        docker-ce-cli \
+        docker-compose-plugin \
+        docker-buildx-plugin \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+Omit the Compose and buildx packages when the inclusion rules above do not apply. Keep Docker support optional and add only the client pieces the repository actually needs.
+
 ## Socket GID mapping
 
 Handle the Docker socket group safely.
