@@ -87,6 +87,18 @@ set -euo pipefail
 
 ALLOWLIST_FILE="${ALLOWLIST_FILE:-/usr/local/share/firewall-allowlist.txt}"
 ALLOWED_IPS_SNAPSHOT="${ALLOWED_IPS_SNAPSHOT:-/run/firewall-allowed-ips.txt}"
+EXPECTED_DNS_RESOLVER="${EXPECTED_DNS_RESOLVER:-127.0.0.11}"
+
+resolved_dns_resolver="$(awk '/^nameserver[[:space:]]+/ { print $2; exit }' /etc/resolv.conf)"
+if [[ "$resolved_dns_resolver" != "$EXPECTED_DNS_RESOLVER" ]]; then
+    echo "FIREWALL ERROR: expected Docker embedded DNS at $EXPECTED_DNS_RESOLVER, found ${resolved_dns_resolver:-none}" >&2
+    exit 1
+fi
+
+# This example is IPv4-only, so disable IPv6 rather than leaving an unfiltered bypass.
+sysctl -w net.ipv6.conf.all.disable_ipv6=1 >/dev/null
+sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null
+sysctl -w net.ipv6.conf.lo.disable_ipv6=1 >/dev/null
 
 # Preserve Docker's embedded DNS rules before flushing tables.
 docker_dns_rules="$(iptables-save | grep -E '127\.0\.0\.11' || true)"
@@ -130,8 +142,8 @@ iptables -A OUTPUT -o lo -j ACCEPT
 iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
-iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
-iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+iptables -A OUTPUT -d "$EXPECTED_DNS_RESOLVER"/32 -p udp --dport 53 -j ACCEPT
+iptables -A OUTPUT -d "$EXPECTED_DNS_RESOLVER"/32 -p tcp --dport 53 -j ACCEPT
 
 iptables -A OUTPUT -p tcp --dport 22 -m set --match-set allowed-domains dst -j ACCEPT
 iptables -A OUTPUT -p tcp --dport 80 -m set --match-set allowed-domains dst -j ACCEPT
@@ -152,9 +164,11 @@ echo "Firewall active — $(wc -l < "$ALLOWED_IPS_SNAPSHOT" | tr -d ' ') IPs all
 
 Implementation notes:
 
+- This example assumes Docker's embedded DNS at `127.0.0.11` and fails closed if the container is using a different resolver. Do not replace this with a broad "allow any DNS" rule.
 - Preserve Docker DNS rules before flushing `iptables`, or container DNS may stop working.
+- Disable IPv6 in this mode because the example only applies IPv4 filtering. If the workload genuinely needs IPv6, add equivalent `ip6tables` / `ipset` rules before treating the container as restricted.
 - Keep the default outbound policy at `DROP`.
-- Allow only DNS plus SSH/HTTP/HTTPS to allowlisted destinations.
+- Allow only Docker DNS plus SSH/HTTP/HTTPS to allowlisted destinations.
 - Resolve domains once at startup; if CDN IPs rotate, restart the container.
 - Snapshot the resolved IPs before dropping privileges so a helper such as `firewall-list` can display them later.
 
@@ -165,7 +179,7 @@ Add the firewall dependencies in the system-packages layer, then install `gosu` 
 ```dockerfile
 # -- Firewall packages (optional, firewalled mode only) -------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        iptables ipset iproute2 dnsutils curl \
+        iptables ipset iproute2 dnsutils procps curl \
     && rm -rf /var/lib/apt/lists/*
 
 # renovate: datasource=github-releases depName=tianon/gosu
@@ -261,8 +275,10 @@ Notes:
 Revalidate both the restrictive and the allowed paths:
 
 - `curl https://example.com` must fail
+- `sysctl net.ipv6.conf.all.disable_ipv6` must report `1` in this mode
 - `gh auth status` must still work when the required GitHub hosts are allowlisted
 - `ssh -T git@github.com` must work when the repository uses SSH remotes
+- `awk '/^nameserver[[:space:]]+/ { print $2; exit }' /etc/resolv.conf` should print `127.0.0.11`
 - `firewall-list` should show resolved IPs
 - `git lfs pull` should work when LFS is enabled and its object hosts were allowlisted
 - pulls from GHCR or Docker Hub should still work when those registries were included deliberately
