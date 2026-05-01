@@ -50,7 +50,7 @@ If Docker support is enabled, the image still stays client-only. The host daemon
 
 Add Docker support in the same global CLI layer as the other host-facing tools, but keep it client-only.
 
-On Debian/Ubuntu-style bases, install the Docker CLI package from the Docker repo or the equivalent client-only package for the chosen base image:
+On Debian/Ubuntu-style bases, add the Docker APT repository first; the package names below come from that repository. For other base images, use the equivalent client-only package source for that distro.
 
 - `docker-ce-cli` for the CLI
 - `docker-compose-plugin` when the repository uses `docker compose` or checked-in Compose files
@@ -63,6 +63,15 @@ Keep the socket-GID path writable during the root phase of the entrypoint. If th
 ```dockerfile
 # -- Docker client (optional, Docker support only) ------------------------------
 RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && . /etc/os-release \
+    && curl -fsSL https://download.docker.com/linux/${ID}/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" \
+        > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         docker-ce-cli \
         docker-compose-plugin \
