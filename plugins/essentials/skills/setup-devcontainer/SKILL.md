@@ -122,7 +122,7 @@ Look for signals that the repository expects authenticated GitHub tooling:
 
 If detected, plan for `gh` installation and a verification path based on `gh auth status`. Also identify whether SSH or HTTPS auth is the expected default for git operations.
 
-**11. Check for GitHub Copilot-compatible workflow needs:**
+**11. Check for GitHub Copilot-compatible IDE and auth needs:**
 
 Ask which environment the user expects to attach from:
 - VS Code
@@ -130,7 +130,7 @@ Ask which environment the user expects to attach from:
 - DevPod or another Dev Container host
 - devcontainer CLI only
 
-Only add mounts, env vars, or workflow guidance that the chosen host genuinely supports. Do not invent editor-specific secret sharing or extension bootstrapping paths.
+Only add mounts, env vars, or IDE/auth guidance that the chosen host genuinely supports. Do not invent editor-specific secret sharing, extension bootstrapping, or Copilot-only workflow layers.
 
 **12. Present findings to the user** before proceeding.
 
@@ -157,7 +157,7 @@ If ecosystem dev tools were detected in Phase 1, add the appropriate install lay
 
 If Kubernetes tooling was detected in Phase 1, add kubectl/helm/helmfile install layers. See [references/dev-tools.md](references/dev-tools.md) for Dockerfile patterns and Renovate annotations.
 
-Keep the image compatible with GitHub Copilot-driven IDE workflows by supporting standard shells, git, SSH, forwarded ports, and the editor's normal devcontainer attach flow rather than relying on unsupported in-container editor hacks.
+Keep the image compatible with GitHub Copilot-capable IDE attach flows by supporting standard shells, git, SSH, forwarded ports, and the editor's normal devcontainer attach/auth path rather than relying on unsupported in-container editor hacks or invented Copilot-only workflow layers.
 
 ### Phase 3: devcontainer.json
 
