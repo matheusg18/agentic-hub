@@ -67,6 +67,21 @@ Install the baseline tools needed for GitHub-authenticated development:
 - `openssh-client`
 - `ca-certificates`
 
+On Debian/Ubuntu-style bases, keep the system package layer explicit and include `gosu` there when you need runtime privilege drop:
+
+```dockerfile
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        gosu \
+        openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+Adapt the package-manager command to the chosen base image, but keep `gosu` installed before the entrypoint depends on it.
+
 A typical GitHub CLI install pattern is:
 
 ```dockerfile
@@ -87,6 +102,24 @@ RUN rm -rf /tmp/gh-config && mkdir -m 1777 /tmp/gh-config
 ```
 
 Do not describe or invent a standalone GitHub Copilot installer for the container. Copilot is an IDE-side capability, not a Dockerfile-managed binary here.
+
+If Phase 1 detects Git LFS usage, extend the same system package layer and initialize it system-wide:
+
+```dockerfile
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        git-lfs \
+        gosu \
+        openssh-client \
+    && git lfs install --system \
+    && rm -rf /var/lib/apt/lists/* \
+    && git lfs version
+```
+
+Keep `git-lfs` in the Dockerfile only when the repository actually uses LFS. If `.lfsconfig` points at a custom LFS server, carry that hostname into any firewall allowlist generated for isolated mode.
 
 ## 7) Preserve hardened permissions
 
@@ -113,6 +146,64 @@ Use an entrypoint that:
 - drops from root to the target UID with `gosu` when needed
 
 Keep the privilege-drop path compatible with both IDE-managed UID remapping and direct container runs.
+
+A practical `.devcontainer/entrypoint.sh` template for arbitrary-UID support:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+DEFAULT_USER="${DEFAULT_USER:-dev}"
+DEFAULT_UID="${DEFAULT_UID:-1000}"
+DEFAULT_GID="${DEFAULT_GID:-1000}"
+DEFAULT_HOME="${HOME:-/tmp/home}"
+WORKSPACE_DIR="${LOCAL_WORKSPACE_FOLDER:-${WORKSPACE_FOLDER:-$PWD}}"
+
+target_uid="${DEFAULT_UID}"
+target_gid="${DEFAULT_GID}"
+
+if [ -d "${WORKSPACE_DIR}" ]; then
+  workspace_uid="$(stat -c '%u' "${WORKSPACE_DIR}")"
+  workspace_gid="$(stat -c '%g' "${WORKSPACE_DIR}")"
+
+  if [ "${workspace_uid}" != "0" ]; then
+    target_uid="${workspace_uid}"
+    target_gid="${workspace_gid}"
+  fi
+fi
+
+if [ "$(id -u)" != "0" ]; then
+  exec "$@"
+fi
+
+if ! getent group "${target_gid}" >/dev/null; then
+  echo "devcontainer:x:${target_gid}:" >> /etc/group
+fi
+
+if ! getent passwd "${target_uid}" >/dev/null; then
+  echo "${DEFAULT_USER}:x:${target_uid}:${target_gid}:Dev Container User:${DEFAULT_HOME}:/bin/bash" >> /etc/passwd
+fi
+
+mkdir -p "${DEFAULT_HOME}"
+chown "${target_uid}:${target_gid}" "${DEFAULT_HOME}"
+
+exec gosu "${target_uid}:${target_gid}" "$@"
+```
+
+Pair it with the Dockerfile so the runtime contract is explicit:
+
+```dockerfile
+COPY .devcontainer/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod 0755 /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["sleep", "infinity"]
+```
+
+Notes:
+- use the mounted workspace owner when available so git writes land with the host UID/GID
+- keep the baked-in `dev` user as the fallback for direct container runs and hosts that already remap the UID
+- only append passwd/group entries when they do not already exist
+- `gosu` must already be installed in the image before this entrypoint runs
 
 ## 9) Keep git and SSH ready
 
