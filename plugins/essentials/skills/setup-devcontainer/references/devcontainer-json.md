@@ -7,7 +7,7 @@ Use the Dev Container spec for GitHub-authenticated development and GitHub Copil
 ## Path A: Shared host auth and settings
 
 Use this when the host already has GitHub CLI auth, SSH agent access, and any local developer settings you want to reuse.
-Only bind `~/.gitconfig` if that file exists on the host.
+Start with the minimal shared-host example below, then add only the optional mounts you actually need.
 
 ```json
 {
@@ -19,15 +19,7 @@ Only bind `~/.gitconfig` if that file exists on the host.
   "updateRemoteUserUID": true,
   "workspaceFolder": "${localWorkspaceFolder}",
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
-  "mounts": [
-    "source=${localEnv:HOME}/.gitconfig,target=/tmp/home/.gitconfig,type=bind,readonly",
-    "source=${localEnv:HOME}/.config/gh,target=/tmp/home/.config/gh,type=bind,readonly",
-    "source=${localEnv:HOME}/.kube,target=/tmp/home/.kube,type=bind,readonly",
-    "source=${localEnv:SSH_AUTH_SOCK},target=/tmp/ssh-agent.sock,type=bind"
-  ],
   "remoteEnv": {
-    "SSH_AUTH_SOCK": "/tmp/ssh-agent.sock",
-    "KUBECONFIG": "/tmp/home/.kube/config",
     "GIT_SSH_COMMAND": "ssh -o UserKnownHostsFile=/etc/ssh/ssh_known_hosts",
     "COLORTERM": "${localEnv:COLORTERM}"
   },
@@ -39,11 +31,57 @@ Only bind `~/.gitconfig` if that file exists on the host.
 
 Key points:
 - Keep the project mounted at the same absolute path as on the host so git worktree paths keep working.
-- Mount `~/.gitconfig` read-only so the container can read identity and aliases without mutating host config, and only when the host file exists.
-- Only mount `~/.config/gh` when the host path actually exists. Keep it read-only when reusing host auth state; if the host path does not exist, omit the mount and use the isolated path instead.
-- Only mount `~/.kube` when host Kubernetes config should be reused. Keep it read-only and set `KUBECONFIG` to the mounted config path.
+- Mount `~/.gitconfig` read-only when the file exists on the host so the container can read identity and aliases without mutating host config.
 - Do not add any standalone tool-specific config mount. GitHub Copilot should use the IDE’s normal attach/auth flow, not a separate in-container tool path.
 - SSH agent forwarding is enough; do not mount `~/.ssh` unless the repository explicitly needs a separate key file.
+
+Optional shared-host snippets:
+
+```json
+{
+  "mounts": [
+    "source=${localEnv:HOME}/.gitconfig,target=/tmp/home/.gitconfig,type=bind,readonly"
+  ]
+}
+```
+
+Use this only when the host `~/.gitconfig` file exists.
+
+```json
+{
+  "mounts": [
+    "source=${localEnv:HOME}/.config/gh,target=/tmp/home/.config/gh,type=bind,readonly"
+  ]
+}
+```
+
+Use this only when the host `~/.config/gh` directory exists and you want to reuse GitHub CLI auth state.
+
+```json
+{
+  "mounts": [
+    "source=${localEnv:SSH_AUTH_SOCK},target=/tmp/ssh-agent.sock,type=bind"
+  ],
+  "remoteEnv": {
+    "SSH_AUTH_SOCK": "/tmp/ssh-agent.sock"
+  }
+}
+```
+
+Use this only when the host SSH agent is available.
+
+```json
+{
+  "mounts": [
+    "source=${localEnv:HOME}/.kube,target=/tmp/home/.kube,type=bind,readonly"
+  ],
+  "remoteEnv": {
+    "KUBECONFIG": "/tmp/home/.kube/config"
+  }
+}
+```
+
+Use this only when host Kubernetes config should be reused.
 
 ## Path B: Isolated container state
 
@@ -80,20 +118,7 @@ Key points:
 
 ## Optional Kubernetes config
 
-If the host Kubernetes context should be reused, add a read-only `~/.kube` bind mount and forward `KUBECONFIG` to the mounted config file:
-
-```json
-{
-  "mounts": [
-    "source=${localEnv:HOME}/.kube,target=/tmp/home/.kube,type=bind,readonly"
-  ],
-  "remoteEnv": {
-    "KUBECONFIG": "/tmp/home/.kube/config"
-  }
-}
-```
-
-Keep this out of isolated mode unless the host kubeconfig is explicitly meant to be shared.
+If the host Kubernetes context should be reused, add the optional shared-host kube snippet above. Keep it out of isolated mode unless the host kubeconfig is explicitly meant to be shared.
 
 ## Optional Docker socket support
 
