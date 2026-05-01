@@ -63,7 +63,7 @@ Keep this conditional. If Docker support was not selected or the socket is missi
 If the skill’s firewall phase was selected, expose a `--firewall` flag on the recipe.
 
 - Without `--firewall`, run in normal development mode
-- With `--firewall`, start the firewalled path and pass the flag through to the container entrypoint
+- With `--firewall`, start the firewalled path by adding the required container capabilities and `DEVCONTAINER_FIREWALL=1`
 
 Do not make firewall mode the default.
 
@@ -79,9 +79,11 @@ dev-shell *args:
         --rm
         -v "$(pwd):$(pwd)"
         -w "$(pwd)"
+        -e "DEVCONTAINER_UID=$(id -u)"
+        -e "DEVCONTAINER_GID=$(id -g)"
     )
     docker_support_enabled=false # set from the Phase 1 Docker support choice
-    entrypoint_args=()
+    container_args=()
 
     if [[ -t 0 ]]; then
         run_args+=(-it)
@@ -110,16 +112,19 @@ dev-shell *args:
 
     if [[ "${1:-}" == "--firewall" ]]; then
         shift
-        run_args+=(--cap-add=NET_ADMIN --cap-add=NET_RAW)
-        entrypoint_args+=(--firewall)
+        run_args+=(
+            --cap-add=NET_ADMIN
+            --cap-add=NET_RAW
+            -e DEVCONTAINER_FIREWALL=1
+        )
     fi
 
-    entrypoint_args+=("$@")
+    container_args+=("$@")
 
-    if [[ ${#entrypoint_args[@]} -eq 0 ]]; then
+    if [[ ${#container_args[@]} -eq 0 ]]; then
         exec docker run "${run_args[@]}" <image> bash
     else
-        exec docker run "${run_args[@]}" <image> "${entrypoint_args[@]}"
+        exec docker run "${run_args[@]}" <image> "${container_args[@]}"
     fi
 ```
 
@@ -130,4 +135,5 @@ dev-shell *args:
 - Mount only existing host paths
 - Reuse GitHub auth explicitly and safely
 - Keep Docker socket support gated on the Phase 1 choice
-- Keep firewall support opt-in and pass `--firewall` through to the entrypoint
+- Let the entrypoint handle UID/GID remapping; do not bypass it with `--user` in this pattern
+- Keep firewall support opt-in and activate it with `DEVCONTAINER_FIREWALL=1`

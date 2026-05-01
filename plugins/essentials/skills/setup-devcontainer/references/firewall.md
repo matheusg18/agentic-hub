@@ -174,21 +174,16 @@ Implementation notes:
 
 ## 3) Dockerfile additions
 
-Add the firewall dependencies in the system-packages layer, then install `gosu` for the root-to-user privilege drop.
+Add the firewall dependencies in the same system-packages layer that already installs `gosu` for the root-to-user privilege drop. Do not add a second `gosu` install path here.
 
 ```dockerfile
 # -- Firewall packages (optional, firewalled mode only) -------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
         iptables ipset iproute2 dnsutils procps curl \
     && rm -rf /var/lib/apt/lists/*
-
-# renovate: datasource=github-releases depName=tianon/gosu
-ARG GOSU_VERSION="1.17"
-RUN arch="$(dpkg --print-architecture)" \
-    && curl -fsSL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-${arch}" -o /usr/local/bin/gosu \
-    && chmod +x /usr/local/bin/gosu \
-    && gosu --version
 ```
+
+If the Dockerfile already follows [the base reference](dockerfile.md), fold these packages into that existing `apt-get install` block and leave `gosu` there.
 
 Copy the runtime files into the image:
 
@@ -290,9 +285,9 @@ exec "$@"
 
 Mode behaviour:
 
-- **normal CLI/task-runner mode**: container starts with `--user`, so the firewall path is skipped
+- **normal CLI/task-runner mode**: the container starts through the root entrypoint, typically with `DEVCONTAINER_UID` / `DEVCONTAINER_GID` set by the task runner; because `DEVCONTAINER_FIREWALL` is unset, the firewall path is skipped and the entrypoint drops privileges normally
 - **IDE attach without explicit UID mapping**: container may start as root, infer the target UID from the workspace owner, map the Docker socket group if present, then drop privileges
-- **firewalled mode**: container starts as root with `DEVCONTAINER_FIREWALL=1`, applies firewall rules, then drops to the target UID via `gosu`
+- **firewalled mode**: the launcher adds `NET_ADMIN` / `NET_RAW` and sets `DEVCONTAINER_FIREWALL=1`; the entrypoint applies firewall rules as root, then drops to the target UID via `gosu`
 
 ## 5) `devcontainer.json` additions
 
@@ -313,7 +308,7 @@ Notes:
 
 - keep these additions conditional on the user opting into firewalled mode
 - `${localEnv:UID}` / `${localEnv:GID}` depend on the host environment exporting them
-- the task runner path is often more reliable because it can call `id -u` / `id -g` directly
+- the task runner path is often more reliable because it can call `id -u` / `id -g` directly and set `DEVCONTAINER_FIREWALL=1` itself when needed
 
 ## 6) Validation
 
