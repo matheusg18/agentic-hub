@@ -67,7 +67,7 @@ Example pattern:
 
 ```dockerfile
 # renovate: datasource=go depName=honnef.co/go/tools
-ARG STATICCHECK_VERSION="2024.1.1"
+ARG STATICCHECK_VERSION="v2024.1.1"
 RUN go install honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}
 ```
 
