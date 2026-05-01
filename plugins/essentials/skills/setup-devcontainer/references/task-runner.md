@@ -54,9 +54,9 @@ Do not rely on hidden tool-specific directories that are not part of the reposit
 
 ## 5) Optional Docker socket support
 
-If Docker support is enabled and `/var/run/docker.sock` exists, mount it explicitly and add the socket GID to the container’s supplementary groups.
+If Docker support was enabled in Phase 1, gate the socket check on that choice; only then, if `/var/run/docker.sock` exists, mount it explicitly and add the socket GID to the container’s supplementary groups.
 
-Keep this conditional. If the socket is missing, run without Docker access.
+Keep this conditional. If Docker support was not selected or the socket is missing, run without Docker access.
 
 ## 6) Optional firewall mode
 
@@ -80,6 +80,8 @@ dev-shell *args:
         -v "$(pwd):$(pwd)"
         -w "$(pwd)"
     )
+    docker_support_enabled=false # set from the Phase 1 Docker support choice
+    entrypoint_args=()
 
     if [[ -t 0 ]]; then
         run_args+=(-it)
@@ -90,7 +92,7 @@ dev-shell *args:
     [[ -f "$HOME/.gitconfig" ]] && run_args+=(-v "$HOME/.gitconfig:/tmp/home/.gitconfig:ro")
     [[ -d "$HOME/.config/gh" ]] && run_args+=(-v "$HOME/.config/gh:/tmp/home/.config/gh")
 
-    if [[ -S /var/run/docker.sock ]]; then
+    if [[ "$docker_support_enabled" == true && -S /var/run/docker.sock ]]; then
         run_args+=(-v /var/run/docker.sock:/var/run/docker.sock)
         run_args+=(--group-add "$(stat -c '%g' /var/run/docker.sock)")
     fi
@@ -98,12 +100,15 @@ dev-shell *args:
     if [[ "${1:-}" == "--firewall" ]]; then
         shift
         run_args+=(--cap-add=NET_ADMIN --cap-add=NET_RAW)
+        entrypoint_args+=(--firewall)
     fi
 
-    if [[ $# -eq 0 ]]; then
+    entrypoint_args+=("$@")
+
+    if [[ ${#entrypoint_args[@]} -eq 0 ]]; then
         exec docker run "${run_args[@]}" <image> bash
     else
-        exec docker run "${run_args[@]}" <image> "$@"
+        exec docker run "${run_args[@]}" <image> "${entrypoint_args[@]}"
     fi
 ```
 
@@ -113,4 +118,5 @@ dev-shell *args:
 - Prefer one recipe over separate isolated/full variants
 - Mount only existing host paths
 - Reuse GitHub auth explicitly and safely
-- Keep Docker and firewall support opt-in
+- Keep Docker socket support gated on the Phase 1 choice
+- Keep firewall support opt-in and pass `--firewall` through to the entrypoint
