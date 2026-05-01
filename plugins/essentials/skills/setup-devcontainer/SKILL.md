@@ -149,7 +149,7 @@ Key principles:
 
 Always include the GitHub-oriented baseline tooling needed for the chosen workflow: `gh`, git, SSH support, CA certificates, and any proven project requirements from Phase 1.
 
-If Docker support was enabled in Phase 1, also add the Docker CLI layer and `/etc/group` writable. See [references/docker-support.md](references/docker-support.md) for the Dockerfile additions and entrypoint GID handling.
+If Docker support was enabled in Phase 1, also add the Docker CLI layer, Compose/buildx inclusion rules, and writable `/etc/group` handling for socket GID mapping. See [references/docker-support.md](references/docker-support.md) for the Dockerfile additions and entrypoint GID handling.
 
 If Git LFS was detected in Phase 1, add `git-lfs` to the system packages layer and run `git lfs install --system`. See [references/dockerfile.md](references/dockerfile.md) for the pattern.
 
@@ -335,5 +335,5 @@ Before generating any file, consult the relevant reference for detailed patterns
 - **[references/firewall.md](references/firewall.md)** — Network firewall: allowlist, script, Dockerfile/entrypoint additions
 - **[references/task-runner.md](references/task-runner.md)** — Task runner recipe with `--firewall` flag
 - **[references/common-mistakes.md](references/common-mistakes.md)** — Common mistakes and red flags to avoid
-- **[references/docker-support.md](references/docker-support.md)** — Docker CLI + Compose: detection signals, Dockerfile layer, socket GID handling, firewall domains
+- **[references/docker-support.md](references/docker-support.md)** — Docker CLI + Compose/buildx: detection signals, client-only install, socket GID handling, exact firewall hostnames
 - **[references/dev-tools.md](references/dev-tools.md)** — Ecosystem dev tools: detection signals, install scope rules, Dockerfile patterns

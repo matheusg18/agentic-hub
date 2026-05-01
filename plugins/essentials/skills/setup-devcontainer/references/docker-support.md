@@ -36,6 +36,16 @@ When Docker support is enabled, install only the client-side tooling needed by t
 
 Install these only when needed or explicitly requested. Do not add them by default just because the repository uses GitHub Copilot or a devcontainer.
 
+Keep the Docker tooling in the normal global CLI install layer alongside other host-facing tools. Do not add Docker daemon packages or services inside the devcontainer.
+
+Use inclusion rules, not guesses:
+
+- add the Compose plugin when the repository uses `docker compose` or checked-in Compose files
+- add buildx only when the repository builds images or invokes `docker buildx`
+- skip both when the repo only needs unrelated container references in docs or CI metadata
+
+If Docker support is enabled, the image still stays client-only. The host daemon comes from `/var/run/docker.sock`; the container should never run a daemon of its own.
+
 ## Socket GID mapping
 
 Handle the Docker socket group safely.
@@ -45,20 +55,25 @@ Handle the Docker socket group safely.
 - Look up the socket GID at runtime and add the user to that group only if it does not already exist
 - Keep the logic conditional so containers still work without Docker access when the socket is absent
 
+If the entrypoint needs to append a missing socket GID to `/etc/group`, that file must be writable during the root phase of the entrypoint. The write happens before dropping privileges, so the container can safely map the socket group without running the whole session as root.
+
 Use the Dockerfile/entrypoint path for the IDE-managed launch flow. For the task-runner launch path, follow the dedicated guidance in [references/task-runner.md](task-runner.md) so the `--group-add` handling stays consistent.
 
 ## Firewall allowlist
 
 Only add Docker registry domains to the firewall allowlist when Docker support is enabled **and** the firewall feature is enabled.
 
-Scan `FROM` directives in Dockerfiles and `image:` fields in Compose files to identify registries.
+Scan `FROM` directives in Dockerfiles and `image:` fields in Compose files, then extract the literal hostname from each registry reference. Do not carry wildcard patterns into the allowlist.
 
-Common registry domains:
-- Docker Hub: `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`
-- GHCR: `ghcr.io`
-- GitLab: `registry.gitlab.com`
-- GCR: `gcr.io`
-- GAR: `*-docker.pkg.dev`
-- ECR: `*.dkr.ecr.*.amazonaws.com`
+Use only exact hostnames that the repository actually references. Literal examples:
 
-If the project uses a private registry, only add the exact hostnames the repository actually references.
+- `registry-1.docker.io`
+- `auth.docker.io`
+- `production.cloudflare.docker.com`
+- `ghcr.io`
+- `registry.gitlab.com`
+- `gcr.io`
+- `us-central1-docker.pkg.dev`
+- `123456789012.dkr.ecr.us-east-1.amazonaws.com`
+
+If the repository uses a private registry or a cloud registry, whitelist the specific host shown in the repo evidence and nothing broader.
