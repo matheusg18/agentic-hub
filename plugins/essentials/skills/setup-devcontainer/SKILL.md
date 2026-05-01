@@ -161,7 +161,7 @@ Keep the image compatible with GitHub Copilot-driven IDE workflows by supporting
 
 ### Phase 3: devcontainer.json
 
-Generate `.devcontainer/devcontainer.json`. Ask the user whether to share host GitHub auth and local settings or start isolated.
+Generate `.devcontainer/devcontainer.json` based on the Phase 1 development mode choice.
 
 See [references/devcontainer-json.md](references/devcontainer-json.md) for both paths (shared host settings vs isolated), mount configurations, and the rationale for each key decision (`init`, workspace mount, SSH agent, COLORTERM, git config handling, and GitHub auth sharing options).
 
