@@ -166,16 +166,17 @@ Generate `.devcontainer/devcontainer.json` based on the Phase 1 development mode
 See [references/devcontainer-json.md](references/devcontainer-json.md) for both paths (shared host settings vs isolated), mount configurations, and the rationale for each key decision (`init`, workspace mount, SSH agent, COLORTERM, git config handling, and GitHub auth sharing options).
 
 Key decisions:
-- **Path A** (shared host settings): reuse host GitHub auth and local developer settings only through supported bind mounts or environment forwarding confirmed in Phase 1
+- **Path A** (shared host settings): reuse host GitHub auth and local developer settings only through supported bind mounts or environment forwarding confirmed in Phase 1; only add GitHub-related host mounts when the host files or directories actually exist
 - **Path B** (isolated): named Docker volumes for container state, no host auth or user config mounts
-- Both paths: `"init": true`, host-native `workspaceFolder`, read-only `.gitconfig`, SSH agent socket, `COLORTERM` forwarding
+- Both paths: `"init": true`, host-native `workspaceFolder`, `SSH` agent socket, `COLORTERM` forwarding
+- Path A only: read-only `~/.gitconfig` and any other supported host config mounts, kept conditional on host file existence
 
 If Docker support was enabled in Phase 1, add the Docker socket bind mount (`/var/run/docker.sock`). The entrypoint handles GID — no `runArgs` needed.
 
 If Kubernetes tooling was detected in Phase 1, add `~/.kube` bind mount and `KUBECONFIG` env var to `remoteEnv`. See [references/devcontainer-json.md](references/devcontainer-json.md) for the mount and env var configuration.
 
 If authenticated GitHub CLI usage is expected, either:
-- reuse supported host `gh` auth state in Path A, or
+- reuse supported host `gh` auth state in Path A when the host auth files exist, or
 - document the first-run `gh auth login` flow for Path B
 
 See [references/devcontainer-json.md](references/devcontainer-json.md) for the supported mount patterns and fallbacks.
