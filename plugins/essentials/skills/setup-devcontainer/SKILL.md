@@ -167,9 +167,10 @@ See [references/devcontainer-json.md](references/devcontainer-json.md) for both 
 
 Key decisions:
 - **Path A** (shared host settings): reuse host GitHub auth and local developer settings only through supported bind mounts or environment forwarding confirmed in Phase 1; only add GitHub-related host mounts when the host files or directories actually exist
-- **Path B** (isolated): named Docker volumes for container state, no host auth or user config mounts
-- Both paths: `"init": true`, host-native `workspaceFolder`, `SSH` agent socket, `COLORTERM` forwarding
+- **Path B** (isolated): named Docker volumes for container state, no host auth, user config, or SSH agent mounts
+- Both paths: `"init": true`, host-native `workspaceFolder`, `COLORTERM` forwarding
 - Path A only: read-only `~/.gitconfig` and any other supported host config mounts, kept conditional on host file existence
+- Path A only: forward the SSH agent socket only when host auth reuse is selected
 
 If Docker support was enabled in Phase 1, add the Docker socket bind mount (`/var/run/docker.sock`). The entrypoint handles GID — no `runArgs` needed.
 

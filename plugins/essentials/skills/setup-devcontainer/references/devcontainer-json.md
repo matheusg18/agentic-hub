@@ -7,6 +7,7 @@ Use the Dev Container spec for GitHub-authenticated development and GitHub Copil
 ## Path A: Shared host auth and settings
 
 Use this when the host already has GitHub CLI auth, SSH agent access, and any local developer settings you want to reuse.
+Only bind `~/.gitconfig` if that file exists on the host.
 
 ```json
 {
@@ -38,7 +39,7 @@ Use this when the host already has GitHub CLI auth, SSH agent access, and any lo
 
 Key points:
 - Keep the project mounted at the same absolute path as on the host so git worktree paths keep working.
-- Mount `~/.gitconfig` read-only so the container can read identity and aliases without mutating host config.
+- Mount `~/.gitconfig` read-only so the container can read identity and aliases without mutating host config, and only when the host file exists.
 - Only mount `~/.config/gh` when the host path actually exists. Keep it read-only when reusing host auth state; if the host path does not exist, omit the mount and use the isolated path instead.
 - Only mount `~/.kube` when host Kubernetes config should be reused. Keep it read-only and set `KUBECONFIG` to the mounted config path.
 - Do not add any standalone tool-specific config mount. GitHub Copilot should use the IDE’s normal attach/auth flow, not a separate in-container tool path.
@@ -74,7 +75,7 @@ Use this for shared team containers, CI-like setups, or when host GitHub auth sh
 Key points:
 - Use a named volume for `~/.config/gh` so GitHub CLI auth persists across rebuilds without depending on host state.
 - On first run, authenticate inside the container with `gh auth login --hostname github.com --web --git-protocol https`, then run `gh auth setup-git` if you want GitHub CLI to configure git credentials.
-- Keep isolated mode free of host auth, user config, and SSH agent mounts; the named `gh` volume is the only persisted auth state.
+- Keep isolated mode free of host auth, user config, and SSH agent mounts; do not reuse the host SSH agent socket or any host auth/user config. The named `gh` volume is the only persisted auth state.
 - Do not invent host-side Copilot mounts or any other tool-specific config directories in isolated mode.
 
 ## Optional Kubernetes config
