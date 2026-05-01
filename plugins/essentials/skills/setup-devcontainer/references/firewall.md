@@ -217,8 +217,11 @@ Update `.devcontainer/entrypoint.sh` so it supports both normal mode and firewal
 #!/usr/bin/env bash
 set -euo pipefail
 
+DEFAULT_USER="${DEFAULT_USER:-dev}"
+DEFAULT_HOME="${DEFAULT_HOME:-${HOME:-/tmp/home}}"
 target_uid="${DEVCONTAINER_UID:-$(id -u)}"
 target_gid="${DEVCONTAINER_GID:-$(id -g)}"
+target_user="${DEFAULT_USER}"
 
 if [[ "$(id -u)" = "0" ]] && [[ -z "${DEVCONTAINER_UID:-}" ]]; then
     workspace="${DEVCONTAINER_WORKSPACE:-$(pwd)}"
@@ -228,8 +231,50 @@ if [[ "$(id -u)" = "0" ]] && [[ -z "${DEVCONTAINER_UID:-}" ]]; then
     fi
 fi
 
-if ! getent passwd "$target_uid" >/dev/null 2>&1; then
-    echo "dev:x:${target_uid}:${target_gid}:dev:${HOME}:/bin/bash" >> /etc/passwd
+if [[ "$(id -u)" = "0" ]] && ! getent group "$target_gid" >/dev/null 2>&1; then
+    echo "devcontainer-${target_gid}:x:${target_gid}:" >> /etc/group
+fi
+
+if existing_passwd="$(getent passwd "$target_uid")"; then
+    target_user="${existing_passwd%%:*}"
+elif [[ "$(id -u)" = "0" ]]; then
+    if getent passwd "$DEFAULT_USER" >/dev/null 2>&1; then
+        target_user="devcontainer-${target_uid}"
+    fi
+    echo "${target_user}:x:${target_uid}:${target_gid}:dev:${DEFAULT_HOME}:/bin/bash" >> /etc/passwd
+fi
+
+configure_docker_socket_access() {
+    local socket_path="/var/run/docker.sock"
+    local socket_gid socket_group
+
+    [[ -S "$socket_path" ]] || return 0
+
+    socket_gid="$(stat -c '%g' "$socket_path" 2>/dev/null || true)"
+    if [[ -z "$socket_gid" ]]; then
+        echo "warning: skipping Docker socket GID mapping; could not read ${socket_path}" >&2
+        return 0
+    fi
+
+    socket_group="$(getent group "$socket_gid" | cut -d: -f1 || true)"
+    if [[ -z "$socket_group" ]]; then
+        socket_group="docker-host-${socket_gid}"
+        echo "${socket_group}:x:${socket_gid}:" >> /etc/group
+    fi
+
+    if command -v gpasswd >/dev/null 2>&1; then
+        if ! id -nG "$target_user" | tr ' ' '\n' | grep -Fx "$socket_group" >/dev/null; then
+            gpasswd -a "$target_user" "$socket_group" >/dev/null 2>&1
+        fi
+    else
+        echo "warning: gpasswd not available; skipping Docker socket GID mapping" >&2
+    fi
+}
+
+if [[ "$(id -u)" = "0" ]]; then
+    mkdir -p "$DEFAULT_HOME"
+    chown "${target_uid}:${target_gid}" "$DEFAULT_HOME"
+    configure_docker_socket_access
 fi
 
 if [[ "${DEVCONTAINER_FIREWALL:-}" = "1" ]] && [[ "$(id -u)" = "0" ]]; then
@@ -237,7 +282,7 @@ if [[ "${DEVCONTAINER_FIREWALL:-}" = "1" ]] && [[ "$(id -u)" = "0" ]]; then
 fi
 
 if [[ "$(id -u)" = "0" ]] && [[ "$target_uid" != "0" ]]; then
-    exec gosu "${target_uid}:${target_gid}" "$@"
+    exec gosu "${target_user}:${target_gid}" "$@"
 fi
 
 exec "$@"
@@ -246,7 +291,7 @@ exec "$@"
 Mode behaviour:
 
 - **normal CLI/task-runner mode**: container starts with `--user`, so the firewall path is skipped
-- **IDE attach without explicit UID mapping**: container may start as root, infer the target UID from the workspace owner, then drop privileges
+- **IDE attach without explicit UID mapping**: container may start as root, infer the target UID from the workspace owner, map the Docker socket group if present, then drop privileges
 - **firewalled mode**: container starts as root with `DEVCONTAINER_FIREWALL=1`, applies firewall rules, then drops to the target UID via `gosu`
 
 ## 5) `devcontainer.json` additions

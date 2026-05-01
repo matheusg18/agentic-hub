@@ -87,10 +87,43 @@ Handle the Docker socket group safely.
 
 - Only touch the socket path when `/var/run/docker.sock` exists
 - Only perform GID mapping when the entrypoint is running as root
-- Look up the socket GID at runtime and add the user to that group only if it does not already exist
+- Look up the socket GID at runtime, create a matching group only when needed, and add the target login user to it before dropping privileges
 - Keep the logic conditional so containers still work without Docker access when the socket is absent
 
 If the entrypoint needs to append a missing socket GID to `/etc/group`, that file must be writable during the root phase of the entrypoint. The write happens before dropping privileges, so the container can safely map the socket group without running the whole session as root.
+
+For IDE-managed attach flows, make the entrypoint do the mapping and continue without failing the whole container when Docker is unavailable:
+
+```bash
+configure_docker_socket_access() {
+  local socket_path="/var/run/docker.sock"
+  local socket_gid socket_group
+
+  [ -S "$socket_path" ] || return 0
+
+  socket_gid="$(stat -c '%g' "$socket_path" 2>/dev/null || true)"
+  if [ -z "$socket_gid" ]; then
+    echo "warning: skipping Docker socket GID mapping; could not read ${socket_path}" >&2
+    return 0
+  fi
+
+  socket_group="$(getent group "$socket_gid" | cut -d: -f1 || true)"
+  if [ -z "$socket_group" ]; then
+    socket_group="docker-host-${socket_gid}"
+    echo "${socket_group}:x:${socket_gid}:" >> /etc/group
+  fi
+
+  if command -v gpasswd >/dev/null 2>&1; then
+    if ! id -nG "$target_user" | tr ' ' '\n' | grep -Fx "$socket_group" >/dev/null; then
+      gpasswd -a "$target_user" "$socket_group" >/dev/null 2>&1
+    fi
+  else
+    echo "warning: gpasswd not available; skipping Docker socket GID mapping" >&2
+  fi
+}
+```
+
+Run that helper after the target passwd entry exists and before `gosu` drops privileges. This is the IDE-managed path; the separate task-runner path should still use [`--group-add`](task-runner.md).
 
 Use the Dockerfile/entrypoint path for the IDE-managed launch flow. For the task-runner launch path, follow the dedicated guidance in [references/task-runner.md](task-runner.md) so the `--group-add` handling stays consistent.
 

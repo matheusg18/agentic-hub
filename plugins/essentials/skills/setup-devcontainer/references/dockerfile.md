@@ -156,11 +156,12 @@ set -euo pipefail
 DEFAULT_USER="${DEFAULT_USER:-dev}"
 DEFAULT_UID="${DEFAULT_UID:-1000}"
 DEFAULT_GID="${DEFAULT_GID:-1000}"
-DEFAULT_HOME="${HOME:-/tmp/home}"
+DEFAULT_HOME="${DEFAULT_HOME:-${HOME:-/tmp/home}}"
 WORKSPACE_DIR="${LOCAL_WORKSPACE_FOLDER:-${WORKSPACE_FOLDER:-$PWD}}"
 
 target_uid="${DEFAULT_UID}"
 target_gid="${DEFAULT_GID}"
+target_user="${DEFAULT_USER}"
 
 if [ -d "${WORKSPACE_DIR}" ]; then
   workspace_uid="$(stat -c '%u' "${WORKSPACE_DIR}")"
@@ -177,17 +178,51 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 if ! getent group "${target_gid}" >/dev/null; then
-  echo "devcontainer:x:${target_gid}:" >> /etc/group
+  echo "devcontainer-${target_gid}:x:${target_gid}:" >> /etc/group
 fi
 
-if ! getent passwd "${target_uid}" >/dev/null; then
-  echo "${DEFAULT_USER}:x:${target_uid}:${target_gid}:Dev Container User:${DEFAULT_HOME}:/bin/bash" >> /etc/passwd
+if existing_passwd="$(getent passwd "${target_uid}")"; then
+  target_user="${existing_passwd%%:*}"
+else
+  if getent passwd "${DEFAULT_USER}" >/dev/null; then
+    target_user="devcontainer-${target_uid}"
+  fi
+  echo "${target_user}:x:${target_uid}:${target_gid}:Dev Container User:${DEFAULT_HOME}:/bin/bash" >> /etc/passwd
 fi
+
+configure_docker_socket_access() {
+  local socket_path="/var/run/docker.sock"
+  local socket_gid socket_group
+
+  [ -S "$socket_path" ] || return 0
+
+  socket_gid="$(stat -c '%g' "$socket_path" 2>/dev/null || true)"
+  if [ -z "$socket_gid" ]; then
+    echo "warning: skipping Docker socket GID mapping; could not read ${socket_path}" >&2
+    return 0
+  fi
+
+  socket_group="$(getent group "$socket_gid" | cut -d: -f1 || true)"
+  if [ -z "$socket_group" ]; then
+    socket_group="docker-host-${socket_gid}"
+    echo "${socket_group}:x:${socket_gid}:" >> /etc/group
+  fi
+
+  if command -v gpasswd >/dev/null 2>&1; then
+    if ! id -nG "$target_user" | tr ' ' '\n' | grep -Fx "$socket_group" >/dev/null; then
+      gpasswd -a "$target_user" "$socket_group" >/dev/null 2>&1
+    fi
+  else
+    echo "warning: gpasswd not available; skipping Docker socket GID mapping" >&2
+  fi
+}
 
 mkdir -p "${DEFAULT_HOME}"
 chown "${target_uid}:${target_gid}" "${DEFAULT_HOME}"
 
-exec gosu "${target_uid}:${target_gid}" "$@"
+configure_docker_socket_access
+
+exec gosu "${target_user}:${target_gid}" "$@"
 ```
 
 Pair it with the Dockerfile so the runtime contract is explicit:
@@ -203,7 +238,9 @@ Notes:
 - use the mounted workspace owner when available so git writes land with the host UID/GID
 - keep the baked-in `dev` user as the fallback for direct container runs and hosts that already remap the UID
 - only append passwd/group entries when they do not already exist
+- when Docker support is enabled, map the socket GID in the root phase and add the target login user to that group before `gosu`
 - `gosu` must already be installed in the image before this entrypoint runs
+- Debian/Ubuntu bases usually provide `gpasswd`; on minimal bases, install the equivalent account-management tool if the entrypoint needs to edit group membership
 
 ## 9) Keep git and SSH ready
 
