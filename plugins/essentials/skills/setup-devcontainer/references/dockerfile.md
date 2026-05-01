@@ -1,17 +1,18 @@
-# Phase 2: Dockerfile
+# Dockerfile Reference
 
 Create `.devcontainer/Dockerfile` with a GitHub-first baseline that stays compatible with GitHub-authenticated development and GitHub Copilot-capable IDE attach flows.
 
-## 1) Prefer reusing CI images
+## 1) Prefer reusing CI and job container images
 
 If the repository already builds a suitable image in GitHub Actions, reuse that image as the devcontainer base.
 
 Look for:
 - `.github/workflows/*.yml` jobs that build/publish a toolchain image
+- jobs that already run inside a `container:` image
 - GHCR images referenced by workflow outputs or deployment steps
 - repository Dockerfiles that already encode the project toolchain
 
-Prefer a multi-stage `FROM` of the workflow-built image over rebuilding the same toolchain in the devcontainer. If no reusable CI image exists, fall back to an official language/runtime image.
+Prefer a multi-stage `FROM` of the workflow-built image over rebuilding the same toolchain in the devcontainer. If a workflow uses `container:`, reuse that same image (tag + digest) so local devcontainer runs and CI execute against the same filesystem and toolchain baseline. If no reusable CI image exists, fall back to an official language/runtime image.
 
 Always pin the base image with both tag and digest:
 
@@ -30,7 +31,15 @@ ARG GH_VERSION="2.60.1"
 
 Use the appropriate datasource for the source being installed. Keep the version in an `ARG` so Renovate can update it without editing the install logic.
 
-## 3) Set `HOME` and `PATH` early
+## 3) Preserve npm hardening when Node is involved
+
+If the project uses npm, keep installs reproducible and minimize supply-chain surface:
+
+- prefer `npm ci` over `npm install` in build steps
+- set `npm config set ignore-scripts true` during dependency installation unless the project explicitly requires lifecycle scripts
+- run any required package scripts in explicit, reviewed steps rather than during the dependency fetch phase
+
+## 4) Set `HOME` and `PATH` early
 
 Set `HOME` and `PATH` before any install steps so every installer targets the intended writable location.
 
@@ -44,13 +53,13 @@ Rules:
 - keep them near the top of the Dockerfile
 - do not rely on later `ENV` statements to fix install paths
 
-## 4) Do not set `WORKDIR`
+## 5) Do not set `WORKDIR`
 
 Never set `WORKDIR` in the devcontainer image.
 
 The repository is mounted at the host-native absolute path and may be a git worktree. A fixed image `WORKDIR` breaks that model and can conflict with absolute paths stored in `.git`.
 
-## 5) Keep GitHub tooling available
+## 6) Keep GitHub tooling available
 
 Install the baseline tools needed for GitHub-authenticated development:
 - `gh`
@@ -79,7 +88,7 @@ RUN rm -rf /tmp/gh-config && mkdir -m 1777 /tmp/gh-config
 
 Do not describe or invent a standalone GitHub Copilot installer for the container. Copilot is an IDE-side capability, not a Dockerfile-managed binary here.
 
-## 6) Preserve hardened permissions
+## 7) Preserve hardened permissions
 
 Use sticky-bit permissions for shared writable paths:
 
@@ -89,7 +98,7 @@ Use sticky-bit permissions for shared writable paths:
 
 If you need a writable home or cache path for runtime tools, make it explicitly sticky-bit world-writable and keep the scope narrow.
 
-## 7) Support arbitrary UID entrypoints
+## 8) Support arbitrary UID entrypoints
 
 Create exactly one non-root user in the image, then drop privileges at runtime when the container starts as root.
 
@@ -105,7 +114,7 @@ Use an entrypoint that:
 
 Keep the privilege-drop path compatible with both IDE-managed UID remapping and direct container runs.
 
-## 8) Keep git and SSH ready
+## 9) Keep git and SSH ready
 
 Configure git and SSH for non-interactive use:
 
@@ -117,7 +126,7 @@ RUN mkdir -p /etc/ssh \
 
 If the project uses another GitHub-hosted Git remote, add that host too. Keep `github.com` present whenever `gh` or GitHub-based auth is expected.
 
-## 9) Practical ordering
+## 10) Practical ordering
 
 Recommended layer order:
 1. Base image
@@ -130,7 +139,7 @@ Recommended layer order:
 
 This keeps installers using the right paths, reduces rebuild churn, and preserves worktree compatibility.
 
-## 10) What not to do
+## 11) What not to do
 
 - Do not add unsupported GitHub Copilot install claims
 - Do not bake editor-specific auth secrets into the image
