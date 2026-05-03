@@ -1,11 +1,7 @@
 ---
 name: setup-devcontainer
 description: Generates a hardened .devcontainer/ setup for GitHub-authenticated development and GitHub Copilot-compatible IDE use. Analyses the project toolchain, reuses CI images, pins dependencies with Renovate annotations, handles arbitrary UIDs, git worktrees, SSH agent forwarding, optional Docker access, and optional network firewall. Triggers on "devcontainer", "dev container", "containerise development", "run GitHub tooling in a container", and "GitHub Copilot devcontainer".
-license: MIT
 compatibility: Requires docker and bash. Generates configs for the Dev Container spec (VS Code, JetBrains, DevPod, devcontainer CLI).
-metadata:
-  author: lx-industries
-  version: "1.0"
 ---
 
 # Set Up a Dev Container
