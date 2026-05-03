@@ -29,6 +29,8 @@ copilot --available-tools='shell,write,web_fetch'
 
 For `git` and `gh`, deny or allow the specific first-level subcommand when that precision matters.
 
+If MCP servers are configured, include MCP tools in the policy discussion. Allow only the specific MCP server or tool that the workflow needs; do not grant broad MCP access just because a `.mcp.json` file exists.
+
 ## Path permissions
 
 By default, Copilot CLI can access the current working directory, its subdirectories, and the system temp directory.
@@ -66,6 +68,8 @@ copilot --deny-url=example.com
 ```
 
 When Phase 1 finds recurring hosts such as GitHub Docs, package registries, Docker registries, or a custom Git LFS host, include them in this guidance only if the workflow genuinely needs Copilot CLI to fetch them.
+
+URL permissions apply to Copilot CLI's network-aware tools and supported shell commands. They are not a complete network sandbox for every process in the devcontainer, so do not describe them as container isolation.
 
 ## High-trust shortcuts
 

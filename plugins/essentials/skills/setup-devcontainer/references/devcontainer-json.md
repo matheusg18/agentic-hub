@@ -113,8 +113,8 @@ Use this for shared team containers, CI-like setups, or when host GitHub auth sh
 Key points:
 - Use a named volume for `~/.config/gh` so GitHub CLI auth persists across rebuilds without depending on host state.
 - On first run, authenticate inside the container with `gh auth login --hostname github.com --web --git-protocol https`, then run `gh auth setup-git` if you want GitHub CLI to configure git credentials.
-- Keep isolated mode free of host auth, user config, and SSH agent mounts; do not reuse the host SSH agent socket or any host auth/user config. The named `gh` volume is the only persisted auth state.
-- Do not invent host-side Copilot mounts or any other tool-specific config directories in isolated mode.
+- Keep isolated mode free of host auth, user config, and SSH agent mounts; do not reuse the host SSH agent socket or any host auth/user config. The named `gh` volume is the only persisted GitHub auth state in this base path.
+- If a code-agent workflow needs its own persisted state, add only explicit per-project named volumes from [agent-workspace.md](agent-workspace.md). Do not invent host-side Copilot mounts or broad tool-specific host config mounts in isolated mode.
 
 ## Optional Kubernetes config
 

@@ -4,6 +4,8 @@ Docker CLI + Compose support is an optional cross-cutting feature for GitHub-hos
 
 Do not install a Docker daemon in the devcontainer. The host daemon should be accessed through the Docker socket when support is enabled.
 
+For coding agents, Docker socket access is effectively host-level control: an agent with socket access can usually start privileged containers, mount host paths, or otherwise escape the intended workspace boundary. Before enabling it for an agent workflow, confirm that Docker is truly required and that the user accepts the risk. If the workflow only needs tests, linters, package managers, or local side services already started outside the agent, leave Docker socket access disabled.
+
 ## Detection signals
 
 Scan the repository during Phase 1 to decide whether Docker support should be offered.
@@ -25,7 +27,7 @@ Scan the repository during Phase 1 to decide whether Docker support should be of
 - CI workflows that build or publish container images
 - `DOCKER_HOST` or similar Docker env vars in repo config
 
-Present Docker support as an option when strong signals exist. If nothing points to Docker, keep it optional and ask before adding it.
+Present Docker support as an option when strong signals exist. If nothing points to Docker, keep it optional and ask before adding it. For agent workflows, phrase the choice as a security tradeoff, not a convenience default.
 
 ## What to install
 
@@ -45,6 +47,8 @@ Use inclusion rules, not guesses:
 - skip both when the repo only needs unrelated container references in docs or CI metadata
 
 If Docker support is enabled, the image still stays client-only. The host daemon comes from `/var/run/docker.sock`; the container should never run a daemon of its own.
+
+If the user needs a narrower boundary than raw socket access, consider a Docker socket proxy or another workflow-specific broker outside this skill's generated baseline. Do not silently swap in a proxy without understanding the commands the repository actually needs.
 
 ## Dockerfile additions
 

@@ -9,6 +9,9 @@ Avoid these mistakes when adapting the setup-devcontainer skill for GitHub and G
 - Do **not** describe GitHub Copilot as its own in-container workflow surface, installer, or secret-sharing channel. Treat it as IDE/auth compatibility layered on top of repository evidence and supported editor attach flows.
 - Do **not** promise unsupported GitHub Copilot install or auth paths.
 - Do **not** reach for container-level network restrictions when the real requirement is controlling what Copilot CLI can access.
+- Do **not** mount broad host credential directories or the whole home directory just to make an agent feel "logged in".
+- Do **not** enable Docker socket access for agents without calling out that it is effectively host-level control.
+- Do **not** overwrite repository instruction files, MCP config, or team agent policy with generated defaults.
 - Do **not** guess when repository evidence is missing.
 
 ## What to do instead
@@ -18,4 +21,5 @@ Avoid these mistakes when adapting the setup-devcontainer skill for GitHub and G
 - Keep assistant/editor guidance limited to supported IDE attach, authentication, and mount behavior already evidenced by the repo or chosen host.
 - Only describe install or auth steps that are supported by the repo and its documented tooling.
 - Use Copilot CLI tool/path/URL permissions as the default control surface for agent behavior.
+- Preserve and validate repo-local agent instructions, MCP config, and per-project agent state when the workflow depends on them.
 - If the repo does not clearly signal a tool or workflow, leave it out rather than inventing one.

@@ -1,6 +1,6 @@
 ---
 name: setup-devcontainer
-description: Use when creating or improving a devcontainer, Dockerfile, or Compose-based development environment for a GitHub repository, especially when deciding between Template, image, Dockerfile, or Compose, choosing lifecycle hooks, sharing or isolating GitHub auth, or wiring local tooling, Docker access, and CI-friendly validation.
+description: Use when creating or improving a devcontainer, Dockerfile, Compose-based development environment, or code-agent workspace for a GitHub repository, especially when deciding between Template, image, Dockerfile, or Compose, configuring agent state, instructions, MCP, permissions, auth, Docker access, or CI-friendly validation.
 compatibility: Requires docker and bash. Generates configs for the Dev Container spec (VS Code, JetBrains, DevPod, devcontainer CLI).
 ---
 
@@ -41,7 +41,7 @@ Before the numbered scan below:
 - Required system libraries
 ```
 
-Registry URLs are useful in Phase 5 if the user wants to pre-approve recurring package or documentation domains with Copilot CLI URL permissions.
+Registry URLs are useful in Phase 6 if the user wants to pre-approve recurring package or documentation domains with Copilot CLI URL permissions.
 
 **2. Check for existing CI container images:**
 
@@ -90,7 +90,7 @@ Look for signals that the project uses Git Large File Storage:
 - `.gitattributes` containing `filter=lfs` entries
 - `.lfsconfig` file (may contain a custom `lfs.url`)
 
-If detected, install `git-lfs` in the Dockerfile (see [references/dockerfile.md](references/dockerfile.md) for the pattern) and note any LFS server hostnames that may matter for Copilot CLI URL allow/deny rules in Phase 5.
+If detected, install `git-lfs` in the Dockerfile (see [references/dockerfile.md](references/dockerfile.md) for the pattern) and note any LFS server hostnames that may matter for Copilot CLI URL allow/deny rules in Phase 6.
 
 For custom LFS servers, parse the URL from `.lfsconfig` (`lfs.url`) or `git config lfs.url` to extract the hostname for any later URL permission guidance.
 
@@ -145,7 +145,19 @@ Ask which environment the user expects to attach from:
 
 Only add mounts, env vars, or IDE/auth guidance that the chosen host genuinely supports. Do not invent editor-specific secret sharing, extension bootstrapping, or Copilot-only workflow layers.
 
-**12. Present findings to the user** before proceeding.
+**12. Check for code-agent workspace needs:**
+
+Look for repository evidence that a coding agent needs more than generic devcontainer support:
+- instruction or steering files: `.github/copilot-instructions.md`, `.github/instructions/**/*.instructions.md`, `AGENTS.md`, `Copilot.md`, `GEMINI.md`, `CODEX.md`, `.claude/`, `.cursor/`, and similar repo-local guidance;
+- MCP config: `.mcp.json` or documented MCP server setup;
+- agent CLI usage in docs, scripts, or task runners;
+- project expectations around persisted agent auth, settings, session state, or per-project agent volumes.
+
+Ask which agent surface matters for this setup: Copilot CLI, Claude Code, Cursor, another agentic IDE/CLI, or IDE-only Copilot attach. Do not install or configure an agent CLI unless the user explicitly wants that workflow and the install path is supported by the relevant official docs.
+
+See [references/agent-workspace.md](references/agent-workspace.md) for state persistence, steering files, MCP-aware setup, agent install policy, and host-vs-container workflow guidance.
+
+**13. Present findings to the user** before proceeding.
 
 ### Phase 2: Dockerfile
 
@@ -199,7 +211,24 @@ See [references/devcontainer-json.md](references/devcontainer-json.md) for the s
 
 If the user needs forwarded services for browser-based development tooling, add `forwardPorts` and `portsAttributes` only for services confirmed in the repository or explicitly requested by the user.
 
-### Phase 4: CI Validation
+### Phase 4: Code-Agent Workspace
+
+Apply this phase when Phase 1 found agent-specific needs or the user explicitly wants the devcontainer to host coding agents.
+
+See [references/agent-workspace.md](references/agent-workspace.md) for complete guidance.
+
+Key principles:
+- preserve repository instruction files; do not replace team guidance with generated instructions;
+- persist agent state only through explicit, scoped volumes or supported secret/env flows;
+- prefer per-project agent state with `${devcontainerId}` when persistence is needed;
+- treat host credential mounts as sensitive and avoid mounting broad home directories;
+- configure MCP from checked-in project files and install any local stdio server dependencies in the Dockerfile only when repo evidence requires them;
+- document whether agent CLIs come from official Features, Dockerfile installs, host IDE attach, or are intentionally not installed;
+- separate headless agent workflows from host-native UI/simulator workflows.
+
+If the user wants a code agent to run inside the container, also decide whether it should use normal approval prompts, Copilot CLI permissions, or a high-trust mode inside the container. Use [references/permissions.md](references/permissions.md) for Copilot CLI-specific tool/path/URL controls.
+
+### Phase 5: CI Validation
 
 Add GitHub Actions jobs that run on changes to `.devcontainer/`.
 
@@ -248,7 +277,7 @@ If the repository depends on self-hosted runners, private registries, or pre-exi
 
 Both jobs should only trigger on changes to `.devcontainer/**/*` or the workflow file itself.
 
-### Phase 5: Copilot CLI Permissions
+### Phase 6: Copilot CLI Permissions
 
 Use Copilot CLI permissions for agent control instead of container-level network restrictions.
 
@@ -262,11 +291,11 @@ Key principles:
 - use `--allow-url` / `--deny-url` for recurring documentation, registry, or forge domains that the workflow genuinely needs;
 - reserve `--allow-all`, `--allow-all-tools`, `--allow-all-paths`, and `--allow-all-urls` for high-trust sessions only.
 
-If Docker support was enabled in Phase 1, include Docker-related domains in URL permission guidance only when the chosen workflow genuinely needs Copilot CLI to fetch those hosts. See [references/docker-support.md](references/docker-support.md).
+If Docker support was enabled in Phase 1, include Docker-related domains in URL permission guidance only when the chosen workflow genuinely needs Copilot CLI to fetch those hosts. See [references/docker-support.md](references/docker-support.md). Re-check whether the agent truly needs Docker socket access before granting it.
 
 If Git LFS was detected in Phase 1, note any LFS object hosts or custom LFS server domains that may need URL approval when Copilot CLI is expected to fetch relevant documentation or network resources.
 
-### Phase 6: Task Runner Integration
+### Phase 7: Task Runner Integration
 
 **Wrap the container launch** in a task runner recipe so the entry point is `just dev-shell` (or equivalent).
 
@@ -285,9 +314,9 @@ If Kubernetes tooling was detected in Phase 1, add a conditional `~/.kube` mount
 
 If the shared-auth path was selected in Phase 1, add conditional host mounts or env forwarding for GitHub auth, SSH agent access, and any confirmed local config paths. Keep all mounts explicit and optional.
 
-### Phase 7: Testing
+### Phase 8: Testing
 
-Run verifications inside the built container using the task runner recipe from Phase 6 (for example `just dev-shell <command>`). If no task runner was configured, use `docker run` directly.
+Run verifications inside the built container using the task runner recipe from Phase 7 (for example `just dev-shell <command>`). If no task runner was configured, use `docker run` directly.
 
 **Verification checklist:**
 - [ ] All language toolchain commands work (compiler, package manager)
@@ -327,7 +356,17 @@ Run verifications inside the built container using the task runner recipe from P
 - [ ] GitHub-authenticated development features still work after attach
 - [ ] Any required forwarded service ports are reachable from the host
 
-**Copilot CLI permissions verification (Phase 5 only):**
+**Code-agent workspace verification (Phase 4 only):**
+
+- [ ] Repository instruction files are present and readable inside the container
+- [ ] Agent auth/settings/session state persist across rebuilds when persistence was selected
+- [ ] Agent state is scoped per project when shared global state would be risky
+- [ ] Agent CLI install path matches the selected policy (Feature, Dockerfile, host IDE attach, or intentionally absent)
+- [ ] Selected agent CLI auth/status command succeeds when an in-container agent CLI was installed
+- [ ] MCP config is visible, required MCP server binaries are installed, and MCP servers are reachable when configured
+- [ ] Host-vs-container workflow notes explain any UI, simulator, browser, or native-device work that must stay on the host
+
+**Copilot CLI permissions verification (Phase 6 only):**
 
 - [ ] If using explicit tool policy, the chosen `--allow-tool`, `--deny-tool`, or `--available-tools` rules match the intended workflow
 - [ ] If using URL approvals, required documentation or forge domains are either approved on demand or pre-approved with `--allow-url`
@@ -341,6 +380,7 @@ Before generating any file, consult the relevant reference for detailed patterns
 - **[references/getting-started.md](references/getting-started.md)** — Source of truth, starting-point matrix, Templates/Features guidance, file-by-file responsibilities
 - **[references/dockerfile.md](references/dockerfile.md)** — Dockerfile patterns, layer ordering, GitHub tooling, entrypoint
 - **[references/devcontainer-json.md](references/devcontainer-json.md)** — devcontainer.json for shared-auth and isolated modes
+- **[references/agent-workspace.md](references/agent-workspace.md)** — Code-agent state, instruction files, MCP, install policy, host-vs-container workflow
 - **[references/permissions.md](references/permissions.md)** — Copilot CLI tool, path, and URL permissions
 - **[references/task-runner.md](references/task-runner.md)** — Task runner recipe and local launcher guidance
 - **[references/common-mistakes.md](references/common-mistakes.md)** — Common mistakes and red flags to avoid
