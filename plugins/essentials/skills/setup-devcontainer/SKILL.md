@@ -1,6 +1,6 @@
 ---
 name: setup-devcontainer
-description: Generates a hardened .devcontainer/ setup for GitHub-authenticated development and GitHub Copilot-compatible IDE use. Analyses the project toolchain, reuses CI images, pins dependencies with Renovate annotations, handles arbitrary UIDs, git worktrees, SSH agent forwarding, optional Docker access, and optional network firewall. Triggers on "devcontainer", "dev container", "containerise development", "run GitHub tooling in a container", and "GitHub Copilot devcontainer".
+description: Use when creating or improving a devcontainer, Dockerfile, or Compose-based development environment for a GitHub repository, especially when deciding between Template, image, Dockerfile, or Compose, choosing lifecycle hooks, sharing or isolating GitHub auth, or wiring local tooling, Docker access, and CI-friendly validation.
 compatibility: Requires docker and bash. Generates configs for the Dev Container spec (VS Code, JetBrains, DevPod, devcontainer CLI).
 ---
 
@@ -8,11 +8,28 @@ compatibility: Requires docker and bash. Generates configs for the Dev Container
 
 Create a `.devcontainer/` setup following the [Dev Container spec](https://containers.dev/) that works for GitHub-authenticated development and GitHub Copilot-compatible IDE use (VS Code, JetBrains, DevPod, devcontainer CLI).
 
+## Orientation Before the Phases
+
+Before generating files, ground the setup in the current official Dev Container ecosystem and choose the lightest starting point that matches the real workflow.
+
+- Check the current Dev Container spec/reference, official Templates catalog, official Features catalog, and the current behavior of the base image you plan to use.
+- Decide whether the right baseline is an official Template, a simple image-based setup, a custom Dockerfile, a Compose stack, or an extension of existing checked-in Compose assets.
+- Prefer official Templates and Features before inventing custom structure or install logic by hand.
+- Keep the file split and lifecycle hooks boring and explicit so a new contributor can see where repo bootstrap, durable image content, local env examples, and troubleshooting docs belong.
+
+See [references/getting-started.md](references/getting-started.md) for the starting-point matrix, file-by-file responsibilities, and the onboarding-oriented docs this skill expects.
+
 ## Process
 
 ### Phase 1: Project Analysis
 
 Before writing any files, investigate the project thoroughly.
+
+Before the numbered scan below:
+
+- check the most recent relevant official docs, Templates, and Features instead of relying on stale memory;
+- choose the starting point using [references/getting-started.md](references/getting-started.md);
+- prefer extending working checked-in Docker/Compose assets when they already model the development workflow well.
 
 **1. Identify the language ecosystem and build tools:**
 
@@ -135,6 +152,7 @@ Only add mounts, env vars, or IDE/auth guidance that the chosen host genuinely s
 Generate `.devcontainer/Dockerfile` and `.devcontainer/entrypoint.sh`.
 
 See [references/dockerfile.md](references/dockerfile.md) for complete Dockerfile patterns covering: base image pinning with digests, Renovate annotations, NPM supply-chain hardening, layer ordering, GitHub CLI install, git/SSH configuration, permissions (sticky bit), arbitrary UID entrypoint, and worktree compatibility.
+See [references/getting-started.md](references/getting-started.md) for when a Dockerfile is the right starting point at all, and which concerns belong in `Dockerfile` vs `postCreate` vs onboarding docs.
 
 Key principles:
 - Pin every image with `tag@sha256:digest`
@@ -160,6 +178,7 @@ Keep the image compatible with GitHub Copilot-capable IDE attach flows by suppor
 Generate `.devcontainer/devcontainer.json` based on the Phase 1 development mode choice.
 
 See [references/devcontainer-json.md](references/devcontainer-json.md) for both paths (shared host settings vs isolated), mount configurations, and the rationale for each key decision (`init`, workspace mount, SSH agent, COLORTERM, git config handling, and GitHub auth sharing options).
+See [references/getting-started.md](references/getting-started.md) for the expected supporting files (`devcontainer.env.example`, `.devcontainer/README.md`, bootstrap scripts) and [references/devcontainer-json.md](references/devcontainer-json.md) for the lifecycle matrix and a broader field reference.
 
 Key decisions:
 - **Path A** (shared host settings): reuse host GitHub auth and local developer settings only through supported bind mounts or environment forwarding confirmed in Phase 1; only add GitHub-related host mounts when the host files or directories actually exist
@@ -326,6 +345,7 @@ Run with the firewall flag (for example `just dev-shell --firewall <command>`):
 
 Before generating any file, consult the relevant reference for detailed patterns and code blocks:
 
+- **[references/getting-started.md](references/getting-started.md)** — Source of truth, starting-point matrix, Templates/Features guidance, file-by-file responsibilities
 - **[references/dockerfile.md](references/dockerfile.md)** — Dockerfile patterns, layer ordering, GitHub tooling, entrypoint
 - **[references/devcontainer-json.md](references/devcontainer-json.md)** — devcontainer.json for shared-auth and isolated modes
 - **[references/firewall.md](references/firewall.md)** — Network firewall: allowlist, script, Dockerfile/entrypoint additions

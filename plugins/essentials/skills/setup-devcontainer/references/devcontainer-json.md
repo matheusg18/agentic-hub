@@ -144,3 +144,41 @@ If the firewall mode is selected elsewhere in the skill, keep the devcontainer J
 - `containerUser`, `remoteUser`, and `updateRemoteUserUID` should stay aligned with the Dockerfile user setup.
 - `COLORTERM` forwarding keeps terminal color behavior consistent across IDEs and headless use.
 - GitHub Copilot is a compatibility target for the IDE attach flow, not a separate containerized tool with its own config directory.
+
+## Common `devcontainer.json` fields that matter
+
+| Field | Use it for | Notes |
+|---|---|---|
+| `image` | Simple image-based setups | Lowest ceremony when the base image already fits |
+| `build.dockerfile` / `build.context` | Custom image builds | Default when you need durable image changes |
+| `dockerComposeFile` | Multi-service workflows | Can be a list when layering overrides |
+| `service` | Which Compose service the editor attaches to | Usually the workspace/app service |
+| `runServices` | Start only the services needed for development | Better than starting everything blindly |
+| `workspaceFolder` | Default open path in the container | Keep aligned with the actual mount path |
+| `workspaceMount` | Custom workspace bind/volume behavior | Important for worktrees, monorepos, and host-native paths |
+| `mounts` | Extra bind mounts or volumes beyond the workspace | Good for `~/.gitconfig`, `~/.config/gh`, Docker socket, and optional kube config |
+| `forwardPorts` | Ports that should always be forwarded | Prefer explicit forwarding over broad publishing |
+| `portsAttributes` / `otherPortsAttributes` | Port-forwarding UX | Label the app port; keep side-service auto-forwarding quiet unless users need it |
+| `containerEnv` | Stable env for all container processes | Changes usually require rebuild/recreate |
+| `remoteEnv` | Tool or terminal-specific env | Good for SSH agent, `COLORTERM`, or client-side behavior |
+| `remoteUser` / `containerUser` | Non-root workflows | Keep aligned with Dockerfile user and entrypoint behavior |
+| `updateRemoteUserUID` | Linux bind-mount permission sanity | Usually keep enabled |
+| `shutdownAction` | Stop behavior on close | `stopCompose` is often right for Compose-based setups |
+| `overrideCommand` | Keep the container alive if the image command exits | Useful when the workspace container is not the real app process |
+| `init` | Tiny init for zombie handling | Usually worth enabling |
+| `customizations` | Editor-specific settings/extensions | Keep useful, not noisy |
+| `hostRequirements` | CPU/RAM/storage hints | Helpful for heavier local stacks |
+
+## Lifecycle matrix
+
+| Hook / property | Runs when | Best for | Avoid |
+|---|---|---|---|
+| `initializeCommand` | On the **host**, during initialization and later starts | local env template copy, host CA capture, host prerequisites | `pip install`, `npm install`, or anything that needs the container workspace |
+| `onCreateCommand` | First-time container create, inside the container | prebuild-safe setup that does not need user secrets | user-specific auth/bootstrap |
+| `updateContentCommand` | During create when repository content becomes available | refresh work tied to checked-out content during creation/prebuild | noisy full installs by default |
+| `postCreateCommand` | After create, once the container is assigned to a user | main repo bootstrap, `.venv`, `pip install`, `npm install`, codegen | frequent runtime checks |
+| `postStartCommand` | Every container start | lightweight runtime checks, tiny repairs, daemon-free nudges | full dependency install |
+| `postAttachCommand` | Every tool/editor attach | interactive UX, reminders, shell hints | expensive bootstrap |
+| `waitFor` | What the tool waits for before connecting | ensuring required setup finishes before attach | unnecessary blocking when background setup is fine |
+
+**Rule of thumb:** host prep -> `initializeCommand`; durable image content -> `Dockerfile`; repo bootstrap -> `postCreateCommand`; runtime checks -> `postStartCommand`; interactive UX -> `postAttachCommand`.
