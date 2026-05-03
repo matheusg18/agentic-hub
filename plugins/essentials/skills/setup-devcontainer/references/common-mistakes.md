@@ -8,7 +8,7 @@ Avoid these mistakes when adapting the setup-devcontainer skill for GitHub and G
 - Do **not** reuse the source skill's legacy assistant-specific CLI names, hidden home-directory mount patterns, or config namespace wording that were replaced during the GitHub + GitHub Copilot adaptation.
 - Do **not** describe GitHub Copilot as its own in-container workflow surface, installer, or secret-sharing channel. Treat it as IDE/auth compatibility layered on top of repository evidence and supported editor attach flows.
 - Do **not** promise unsupported GitHub Copilot install or auth paths.
-- Do **not** enable the firewall by default for normal development.
+- Do **not** reach for container-level network restrictions when the real requirement is controlling what Copilot CLI can access.
 - Do **not** guess when repository evidence is missing.
 
 ## What to do instead
@@ -17,5 +17,5 @@ Avoid these mistakes when adapting the setup-devcontainer skill for GitHub and G
 - Map CI behavior from what the repository actually declares in workflows and scripts, not from source-skill carryovers.
 - Keep assistant/editor guidance limited to supported IDE attach, authentication, and mount behavior already evidenced by the repo or chosen host.
 - Only describe install or auth steps that are supported by the repo and its documented tooling.
-- Treat the firewall as an opt-in hardening path, not a default requirement.
+- Use Copilot CLI tool/path/URL permissions as the default control surface for agent behavior.
 - If the repo does not clearly signal a tool or workflow, leave it out rather than inventing one.

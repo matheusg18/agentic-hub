@@ -133,10 +133,6 @@ Notes:
 - Do not add `runArgs` for socket GID handling here; the Dockerfile/entrypoint path should handle that.
 - If the socket is missing, skip the mount and keep the container Docker-free.
 
-## Optional firewall mode
-
-If the firewall mode is selected elsewhere in the skill, keep the devcontainer JSON otherwise unchanged. Firewall behavior should come from the dedicated wrapper and entrypoint logic, not from extra devcontainer-specific hacks.
-
 ## Key decisions
 
 - `"init": true` should always be set.

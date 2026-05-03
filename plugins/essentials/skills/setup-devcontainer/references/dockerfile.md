@@ -119,7 +119,7 @@ RUN apt-get update \
     && git lfs version
 ```
 
-Keep `git-lfs` in the Dockerfile only when the repository actually uses LFS. If `.lfsconfig` points at a custom LFS server, carry that hostname into any firewall allowlist generated for isolated mode.
+Keep `git-lfs` in the Dockerfile only when the repository actually uses LFS. If `.lfsconfig` points at a custom LFS server, note that hostname for any later Copilot CLI URL permission guidance.
 
 ## 7) Preserve hardened permissions
 

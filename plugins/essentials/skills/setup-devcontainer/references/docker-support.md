@@ -127,13 +127,11 @@ Run that helper after the target passwd entry exists and before `gosu` drops pri
 
 Use the Dockerfile/entrypoint path for the IDE-managed launch flow. For the task-runner launch path, follow the dedicated guidance in [references/task-runner.md](task-runner.md) so the `--group-add` handling stays consistent.
 
-## Firewall allowlist
+## Copilot CLI URL permissions
 
-Only add Docker registry domains to the firewall allowlist when Docker support is enabled **and** the firewall feature is enabled.
+If the chosen workflow uses Copilot CLI URL allow/deny rules, scan `FROM` directives in Dockerfiles and `image:` fields in Compose files, then extract the literal hostname from each registry reference.
 
-Scan `FROM` directives in Dockerfiles and `image:` fields in Compose files, then extract the literal hostname from each registry reference. Do not carry wildcard patterns into the allowlist.
-
-Use only exact hostnames that the repository actually references. Literal examples:
+Use only exact hostnames that the repository actually references. Typical examples:
 
 - `registry-1.docker.io`
 - `auth.docker.io`
@@ -144,4 +142,4 @@ Use only exact hostnames that the repository actually references. Literal exampl
 - `us-central1-docker.pkg.dev`
 - `123456789012.dkr.ecr.us-east-1.amazonaws.com`
 
-If the repository uses a private registry or a cloud registry, whitelist the specific host shown in the repo evidence and nothing broader.
+Those hosts belong in URL permission guidance only when Copilot CLI is actually expected to fetch them during the workflow.

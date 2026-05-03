@@ -41,7 +41,7 @@ Before the numbered scan below:
 - Required system libraries
 ```
 
-Registry URLs are needed for Phase 5 (firewall allowlist) if the user opts in.
+Registry URLs are useful in Phase 5 if the user wants to pre-approve recurring package or documentation domains with Copilot CLI URL permissions.
 
 **2. Check for existing CI container images:**
 
@@ -90,9 +90,9 @@ Look for signals that the project uses Git Large File Storage:
 - `.gitattributes` containing `filter=lfs` entries
 - `.lfsconfig` file (may contain a custom `lfs.url`)
 
-If detected, install `git-lfs` in the Dockerfile (see [references/dockerfile.md](references/dockerfile.md) for the pattern) and add LFS server domains to the firewall allowlist if Phase 5 is enabled (see [references/firewall.md](references/firewall.md)).
+If detected, install `git-lfs` in the Dockerfile (see [references/dockerfile.md](references/dockerfile.md) for the pattern) and note any LFS server hostnames that may matter for Copilot CLI URL allow/deny rules in Phase 5.
 
-For custom LFS servers, parse the URL from `.lfsconfig` (`lfs.url`) or `git config lfs.url` to extract the hostname for the firewall allowlist.
+For custom LFS servers, parse the URL from `.lfsconfig` (`lfs.url`) or `git config lfs.url` to extract the hostname for any later URL permission guidance.
 
 **7. Check for Kubernetes tooling:**
 
@@ -248,37 +248,35 @@ If the repository depends on self-hosted runners, private registries, or pre-exi
 
 Both jobs should only trigger on changes to `.devcontainer/**/*` or the workflow file itself.
 
-### Phase 5: Network Firewall (Optional)
+### Phase 5: Copilot CLI Permissions
 
-**Ask the user:** will this container be used for autonomous or sandboxed execution? If not, skip this phase — the firewall breaks normal development.
+Use Copilot CLI permissions for agent control instead of container-level network restrictions.
 
-See [references/firewall.md](references/firewall.md) for complete firewall implementation: allowlist file generation (auto-detected from Phase 1 registries and GitHub endpoints), `firewall.sh` script, Dockerfile additions (iptables, ipset, gosu), entrypoint modifications (firewall + privilege drop via gosu), and devcontainer.json additions for IDE-based firewall mode.
+See [references/permissions.md](references/permissions.md) for the official-model guidance covering tool approvals, path permissions, and URL permissions.
 
 Key principles:
-- Allowlist file with domains, resolved to IPs at startup
-- Default DROP policy, allow only DNS/SSH/HTTP/HTTPS to listed domains
-- Self-test (verify blocked domain is unreachable)
-- `gosu` for privilege drop after firewall setup
-- Include GitHub endpoints required by the actual workflow (`github.com`, `api.github.com`, `uploads.github.com`, `ghcr.io`) when those services are in use
-- Include package registry domains discovered in Phase 1
-- Only add editor- or GitHub Copilot-specific domains when the user's chosen environment demonstrably requires them
+- prefer **tool/path/URL permissions** when the real goal is controlling what Copilot CLI may do;
+- keep the default approval flow unless the user explicitly wants recurring domains or tools pre-approved;
+- use `--allow-tool` / `--deny-tool` to shape tool access, including shell subcommands and `write`;
+- use path permissions to keep the agent inside the intended workspace instead of relying on container tricks;
+- use `--allow-url` / `--deny-url` for recurring documentation, registry, or forge domains that the workflow genuinely needs;
+- reserve `--allow-all`, `--allow-all-tools`, `--allow-all-paths`, and `--allow-all-urls` for high-trust sessions only.
 
-If Docker support was enabled in Phase 1, add Docker Hub registry domains (`registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`) to the allowlist. Scan project Dockerfiles and compose files for additional registries. See [references/docker-support.md](references/docker-support.md).
+If Docker support was enabled in Phase 1, include Docker-related domains in URL permission guidance only when the chosen workflow genuinely needs Copilot CLI to fetch those hosts. See [references/docker-support.md](references/docker-support.md).
 
-If Git LFS was detected in Phase 1, add the LFS server domains to the allowlist. See [references/firewall.md](references/firewall.md) for the domain table.
+If Git LFS was detected in Phase 1, note any LFS object hosts or custom LFS server domains that may need URL approval when Copilot CLI is expected to fetch relevant documentation or network resources.
 
 ### Phase 6: Task Runner Integration
 
 **Wrap the container launch** in a task runner recipe so the entry point is `just dev-shell` (or equivalent).
 
-See [references/task-runner.md](references/task-runner.md) for detection logic, recipe structure, and the `--firewall` flag for firewalled autonomous mode.
+See [references/task-runner.md](references/task-runner.md) for detection logic and recipe structure.
 
 Key principles:
 - Detect existing task runner (justfile, Makefile, Taskfile.yml, package.json)
 - Ask user before adding recipes
 - Conditional mounts (only mount configs that exist on the host and are supported by the chosen path)
 - TTY auto-detection
-- `--firewall` flag for opt-in firewall mode
 - Single recipe, not separate isolated/full variants
 
 If Docker support was enabled in Phase 1, add a conditional Docker socket mount with `--group-add` to the recipe. See [references/docker-support.md](references/docker-support.md).
@@ -308,7 +306,6 @@ Run verifications inside the built container using the task runner recipe from P
 **Git LFS verification (Git LFS only):**
 - [ ] `git lfs version` — git-lfs is installed and on PATH
 - [ ] `git lfs env` — LFS is configured correctly (shows system-level install)
-- [ ] If firewall enabled: `git lfs pull` succeeds (LFS server domains are reachable)
 
 **Kubernetes verification (Kubernetes tooling only):**
 - [ ] `kubectl version --client` — kubectl is installed and on PATH
@@ -324,22 +321,18 @@ Run verifications inside the built container using the task runner recipe from P
 - [ ] `docker info` — full daemon connectivity
 - [ ] `docker run --rm hello-world` — end-to-end pull + run + cleanup
 - [ ] `docker build -t test-build - <<< 'FROM alpine' && docker rmi test-build` — can build images
-- [ ] If firewall enabled: `docker pull alpine` succeeds (Docker Hub allowlisted)
 
 **IDE attach verification (when using a remote IDE workflow):**
 - [ ] The chosen editor can reopen the repository in the container
 - [ ] GitHub-authenticated development features still work after attach
 - [ ] Any required forwarded service ports are reachable from the host
 
-**Firewall verification (Phase 5 only):**
+**Copilot CLI permissions verification (Phase 5 only):**
 
-Run with the firewall flag (for example `just dev-shell --firewall <command>`):
-- [ ] `curl https://example.com` is rejected (firewall blocks unlisted domains)
-- [ ] `gh auth status` still succeeds when GitHub domains are allowlisted
-- [ ] `ssh -T git@github.com` succeeds (GitHub SSH is allowed)
-- [ ] `firewall-list` shows resolved IPs
-- [ ] `whoami` still resolves (gosu dropped to correct UID)
-- [ ] `id -u` matches host UID (privilege drop worked)
+- [ ] If using explicit tool policy, the chosen `--allow-tool`, `--deny-tool`, or `--available-tools` rules match the intended workflow
+- [ ] If using URL approvals, required documentation or forge domains are either approved on demand or pre-approved with `--allow-url`
+- [ ] If using path restrictions, Copilot CLI can access the workspace paths it needs and is blocked from paths that should stay out of scope
+- [ ] Avoid `--allow-all` / `/yolo` unless the user explicitly wants a fully trusted session
 
 ## Reference
 
@@ -348,8 +341,8 @@ Before generating any file, consult the relevant reference for detailed patterns
 - **[references/getting-started.md](references/getting-started.md)** — Source of truth, starting-point matrix, Templates/Features guidance, file-by-file responsibilities
 - **[references/dockerfile.md](references/dockerfile.md)** — Dockerfile patterns, layer ordering, GitHub tooling, entrypoint
 - **[references/devcontainer-json.md](references/devcontainer-json.md)** — devcontainer.json for shared-auth and isolated modes
-- **[references/firewall.md](references/firewall.md)** — Network firewall: allowlist, script, Dockerfile/entrypoint additions
-- **[references/task-runner.md](references/task-runner.md)** — Task runner recipe with `--firewall` flag
+- **[references/permissions.md](references/permissions.md)** — Copilot CLI tool, path, and URL permissions
+- **[references/task-runner.md](references/task-runner.md)** — Task runner recipe and local launcher guidance
 - **[references/common-mistakes.md](references/common-mistakes.md)** — Common mistakes and red flags to avoid
-- **[references/docker-support.md](references/docker-support.md)** — Docker CLI + Compose/buildx: detection signals, client-only install, socket GID handling, exact firewall hostnames
+- **[references/docker-support.md](references/docker-support.md)** — Docker CLI + Compose/buildx: detection signals, client-only install, socket GID handling
 - **[references/dev-tools.md](references/dev-tools.md)** — Ecosystem dev tools: detection signals, install scope rules, Dockerfile patterns

@@ -26,8 +26,7 @@ The recipe should:
 3. accept pass-through arguments for specific commands
 4. add conditional mounts only when the host path exists
 5. optionally enable Docker socket access
-6. optionally enable `--firewall` mode
-7. detect TTY presence so scripts do not fail in CI or non-interactive shells
+6. detect TTY presence so scripts do not fail in CI or non-interactive shells
 
 For staleness checks, prefer the runner’s native file tracking when it exists. If the runner cannot do that cleanly, use a simple sentinel file or always rebuild and rely on Docker layer caching.
 
@@ -58,16 +57,7 @@ If Docker support was enabled in Phase 1, gate the socket check on that choice; 
 
 Keep this conditional. If Docker support was not selected or the socket is missing, run without Docker access.
 
-## 6) Optional firewall mode
-
-If the skill’s firewall phase was selected, expose a `--firewall` flag on the recipe.
-
-- Without `--firewall`, run in normal development mode
-- With `--firewall`, start the firewalled path by adding the required container capabilities and `DEVCONTAINER_FIREWALL=1`
-
-Do not make firewall mode the default.
-
-## 7) Example `just` shape
+## 6) Example `just` shape
 
 ```just
 [positional-arguments]
@@ -110,15 +100,6 @@ dev-shell *args:
         run_args+=(--group-add "$docker_sock_gid")
     fi
 
-    if [[ "${1:-}" == "--firewall" ]]; then
-        shift
-        run_args+=(
-            --cap-add=NET_ADMIN
-            --cap-add=NET_RAW
-            -e DEVCONTAINER_FIREWALL=1
-        )
-    fi
-
     container_args+=("$@")
 
     if [[ ${#container_args[@]} -eq 0 ]]; then
@@ -128,7 +109,7 @@ dev-shell *args:
     fi
 ```
 
-## 8) Key rules
+## 7) Key rules
 
 - Keep the entry point short and local
 - Prefer one recipe over separate isolated/full variants
@@ -136,4 +117,3 @@ dev-shell *args:
 - Reuse GitHub auth explicitly and safely
 - Keep Docker socket support gated on the Phase 1 choice
 - Let the entrypoint handle UID/GID remapping; do not bypass it with `--user` in this pattern
-- Keep firewall support opt-in and activate it with `DEVCONTAINER_FIREWALL=1`
