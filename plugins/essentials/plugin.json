@@ -1,0 +1,11 @@
+{
+  "name": "essentials",
+  "description": "Plugins essenciais",
+  "version": "1.0.0",
+  "author": {
+    "name": "Matheus Santos",
+    "email": "matheusgabriel.18@gmail.com"
+  },
+  "repository": "",
+  "skills": "./skills"
+}

@@ -1,0 +1,20 @@
+{
+  "name": "agentic-hub",
+  "metadata": {
+    "description": "Matheus Santos's personal marketplace for agentic plugins",
+    "version": "1.0.0",
+    "pluginRoot": "./plugins"
+  },
+  "owner": {
+    "name": "Matheus Santos",
+    "email": "matheusgabriel.18@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "essentials",
+      "source": "essentials",
+      "description": "Plugins essenciais",
+      "version": "1.0.0"
+    }
+  ]
+}
